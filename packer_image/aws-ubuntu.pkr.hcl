@@ -28,4 +28,17 @@ build {
   sources = [
     "source.amazon-ebs.ubuntu"
   ]
+
+  # Install Ansible
+  provisioner "shell" {
+    inline = [
+      "sudo apt-get update",
+      "sudo apt-get install -y ansible"
+    ]
+  }
+
+  # Run Ansible playbook
+  provisioner "ansible" {
+    playbook_file = "/Users/jorge.lopez/Documents/Disrupting/Scripts-IAC/Transversales/ansible_hard/harden-ec2.yml"
+  }
 }
