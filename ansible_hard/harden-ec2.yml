@@ -1,0 +1,102 @@
+---
+- name: Harden Ubuntu EC2 Instance
+  hosts: all
+  become: yes
+  tasks:
+
+    - name: Ensure the system is up-to-date
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Install basic security packages
+      apt:
+        name:
+          - ufw
+          - fail2ban
+          - unattended-upgrades
+          - git
+        state: present
+
+    - name: Set up UFW (Uncomplicated Firewall) to allow SSH and block everything else
+      ufw:
+        rule: allow
+        name: OpenSSH
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+        default: deny
+
+    - name: Disable root login via SSH
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PermitRootLogin'
+        line: 'PermitRootLogin no'
+        state: present
+      notify:
+        - Restart SSH
+
+    - name: Disable password authentication via SSH
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+        state: present
+      notify:
+        - Restart SSH
+
+    - name: Set up automatic security updates
+      lineinfile:
+        path: /etc/apt/apt.conf.d/50unattended-upgrades
+        regexp: '^//\s*Unattended-Upgrade::Mail'
+        line: 'Unattended-Upgrade::Mail "root";'
+        state: present
+
+    - name: Configure Fail2Ban to protect SSH
+      copy:
+        dest: /etc/fail2ban/jail.local
+        content: |
+          [sshd]
+          enabled = true
+          port    = ssh
+          logpath = %(sshd_log)s
+          maxretry = 5
+        owner: root
+        group: root
+        mode: '0644'
+      notify:
+        - Restart Fail2Ban
+
+    - name: Clone Lynis repository
+      git:
+        repo: https://github.com/CISOfy/lynis.git
+        dest: /opt/lynis
+    
+    - name: Install Lynis using apt
+      apt:
+        name: lynis
+        state: present
+
+    - name: Run Lynis audit
+      command: /opt/lynis/lynis audit system
+      register: lynis_audit_output
+
+    - name: Save Lynis audit results to a file in /home
+      copy:
+        content: "{{ lynis_audit_output.stdout }}"
+        dest: /home/lynis_ansible_scan
+        owner: root
+        group: root
+        mode: '0644'
+
+  handlers:
+    - name: Restart SSH
+      service:
+        name: ssh
+        state: restarted
+
+    - name: Restart Fail2Ban
+      service:
+        name: fail2ban
+        state: restarted
