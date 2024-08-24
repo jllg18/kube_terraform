@@ -24,7 +24,7 @@ source "amazon-ebs" "ubuntu" {
 }
 
 build {
-  name = "learn-packer"
+  name = "ubuntu-image-packer"
   sources = [
     "source.amazon-ebs.ubuntu"
   ]
